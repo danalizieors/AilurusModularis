@@ -1,0 +1,16 @@
+{
+  "slug": "SpringTheory",
+  "name": "SpringTheory",
+  "version": "0.1.0",
+  "license": "MIT",
+  "brand": "AilurusModularis",
+  "author": "Danalizi-Er\u0151ss \u00d6rs",
+  "authorEmail": "danalizieors@gmail.com",
+  "authorUrl": "https://github.com/danalizieors",
+  "pluginUrl": "https://github.com/danalizieors/AilurusModularis",
+  "manualUrl": "",
+  "sourceUrl": "",
+  "donateUrl": "",
+  "changelogUrl": "",
+  "modules": []
+}
