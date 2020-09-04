@@ -1,7 +1,7 @@
 {
   "slug": "AilurusModularis",
   "name": "Ailurus Modularis",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "license": "MIT",
   "brand": "Ailurus Modularis",
   "author": "Danalizi-Er\u0151ss \u00d6rs",
@@ -17,7 +17,6 @@
       "slug": "SpringTheory",
       "name": "Spring Theory",
       "description": "Spring based low-frequency oscillator",
-      "manualUrl": "https://github.com/danalizieors/AilurusModularis",
       "tags": [
         "LFO"
       ]
