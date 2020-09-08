@@ -1,56 +1,71 @@
 #include "plugin.hpp"
 
+Vec grid(float x, float y) {
+	float halfGrid = RACK_GRID_WIDTH * 0.5f;
+	return Vec(halfGrid * x, halfGrid * y);
+}
 
 struct SpringTheory : Module {
 	enum ParamIds {
-		PITCH_PARAM,
+		OFFSET_PARAM,
+		STIFFNESS_PARAM,
+		FRICTION_PARAM,
+		POSITION_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
-		PITCH_INPUT,
+		RESET_INPUT,
+		STIFFNESS_INPUT,
+		FRICTION_INPUT,
+		POSITION_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
-		SINE_OUTPUT,
+		ACCELERATION_OUTPUT,
+		VELOCITY_OUTPUT,
+		POSITION_OUTPUT,
 		NUM_OUTPUTS
 	};
 	enum LightIds {
-		BLINK_LIGHT,
+		DIFFERENCE_LIGHT,
 		NUM_LIGHTS
 	};
 
 	SpringTheory() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(PITCH_PARAM, 0.f, 1.f, 0.f, "");
+
+		configParam(OFFSET_PARAM, 0.f, 1.f, 1.f, "Offset");
+		configParam(STIFFNESS_PARAM, 0.f, 10.f, 1.f, "Stiffness", "N/m");
+		configParam(FRICTION_PARAM, 0.f, 10.f, 0.f, "Friction", "Ns/m");
+		configParam(POSITION_PARAM, -5.f, 5.f, -5.f, "Position", "m");
 	}
 
-	float phase = 0.f;
-    float blinkPhase = 0.f;
+	float position = 0.f;
+    float velocity = 0.f;
 
 	void process(const ProcessArgs& args) override {
-		// Compute the frequency from the pitch parameter and input
-        float pitch = params[PITCH_PARAM].getValue();
-        pitch += inputs[PITCH_INPUT].getVoltage();
-        pitch = clamp(pitch, -4.f, 4.f);
-        // The default pitch is C4 = 261.6256f
-        float freq = dsp::FREQ_C4 * std::pow(2.f, pitch);
+		float offset = params[OFFSET_PARAM].getValue();
+		offset *= 5.f;
+		float stiffness = params[STIFFNESS_PARAM].getValue();
+		float friction = params[FRICTION_PARAM].getValue();
+		float targetPosition = params[POSITION_PARAM].getValue();
+		targetPosition += offset;
 
-        // Accumulate the phase
-        phase += freq * args.sampleTime;
-        if (phase >= 0.5f)
-            phase -= 1.f;
+		float difference = position - targetPosition;
+		float tension = -stiffness * difference;
+		float damping = -friction * velocity;
+		float acceleration = tension + damping;
+		velocity += acceleration * args.sampleTime;
+		position += velocity * args.sampleTime;
 
-        // Compute the sine output
-        float sine = std::sin(2.f * M_PI * phase);
-        // Audio signals are typically +/-5V
-        // https://vcvrack.com/manual/VoltageStandards.html
-        outputs[SINE_OUTPUT].setVoltage(5.f * sine);
+		float minimum = -5.f + offset;
+		float maximum = 5.f + offset;
+		position = clamp(position, minimum, maximum);
 
-        // Blink light at 1Hz
-        blinkPhase += args.sampleTime;
-        if (blinkPhase >= 1.f)
-            blinkPhase -= 1.f;
-        lights[BLINK_LIGHT].setBrightness(blinkPhase < 0.5f ? 1.f : 0.f);
+		outputs[ACCELERATION_OUTPUT].setVoltage(clamp(acceleration, -5.f, 5.f));
+		outputs[VELOCITY_OUTPUT].setVoltage(clamp(velocity, -5.f, 5.f));
+		outputs[POSITION_OUTPUT].setVoltage(position);
+		lights[DIFFERENCE_LIGHT].setBrightness(std::abs(difference) * 0.1f);
 	}
 };
 
@@ -65,13 +80,19 @@ struct SpringTheoryWidget : ModuleWidget {
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(15.24, 46.063)), module, SpringTheory::PITCH_PARAM));
+		addInput(createInputCentered<PJ301MPort>(grid(3, 11), module, SpringTheory::STIFFNESS_INPUT));
+		addParam(createParamCentered<RoundBlackKnob>(grid(8, 11), module, SpringTheory::STIFFNESS_PARAM));
+		addInput(createInputCentered<PJ301MPort>(grid(3, 16), module, SpringTheory::FRICTION_INPUT));
+		addParam(createParamCentered<RoundBlackKnob>(grid(8, 16), module, SpringTheory::FRICTION_PARAM));
 
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(15.24, 77.478)), module, SpringTheory::PITCH_INPUT));
+		addParam(createLightParamCentered<LEDLightSlider<WhiteLight>>(grid(3, 34), module, SpringTheory::POSITION_PARAM, SpringTheory::DIFFERENCE_LIGHT));
+		addParam(createParamCentered<CKSS>(grid(6, 44), module, SpringTheory::OFFSET_PARAM));
+		addInput(createInputCentered<PJ301MPort>(grid(3, 44), module, SpringTheory::POSITION_INPUT));
 
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(15.24, 108.713)), module, SpringTheory::SINE_OUTPUT));
-
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(15.24, 25.81)), module, SpringTheory::BLINK_LIGHT));
+		addInput(createInputCentered<PJ301MPort>(grid(9, 29), module, SpringTheory::RESET_INPUT));
+		addOutput(createOutputCentered<PJ301MPort>(grid(9, 34), module, SpringTheory::ACCELERATION_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(grid(9, 39), module, SpringTheory::VELOCITY_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(grid(9, 44), module, SpringTheory::POSITION_OUTPUT));
 	}
 };
 
