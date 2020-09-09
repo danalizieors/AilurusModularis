@@ -14,10 +14,10 @@ struct SpringTheory : Module {
 		NUM_PARAMS
 	};
 	enum InputIds {
-		RESET_INPUT,
 		STIFFNESS_INPUT,
 		FRICTION_INPUT,
 		POSITION_INPUT,
+		RESET_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -36,36 +36,58 @@ struct SpringTheory : Module {
 
 		configParam(OFFSET_PARAM, 0.f, 1.f, 1.f, "Offset");
 		configParam(STIFFNESS_PARAM, 0.f, 10.f, 1.f, "Stiffness", "N/m");
-		configParam(FRICTION_PARAM, 0.f, 10.f, 0.f, "Friction", "Ns/m");
+		configParam(FRICTION_PARAM, 0.f, 10.f, 1.f, "Friction", "Ns/m");
 		configParam(POSITION_PARAM, -5.f, 5.f, -5.f, "Position", "m");
 	}
 
-	float position = 0.f;
+	dsp::SchmittTrigger resetTrigger;
+
     float velocity = 0.f;
+	float position = 0.f;
 
 	void process(const ProcessArgs& args) override {
+		// read and normalize parameters and inputs
 		float offset = params[OFFSET_PARAM].getValue();
 		offset *= 5.f;
+		float minimum = -5.f + offset;
+		float maximum = 5.f + offset;
+
 		float stiffness = params[STIFFNESS_PARAM].getValue();
+		stiffness += inputs[STIFFNESS_INPUT].getVoltage();
+		stiffness = std::max(0.f, stiffness);
+
 		float friction = params[FRICTION_PARAM].getValue();
+		friction += inputs[FRICTION_INPUT].getVoltage();
+		friction = std::max(0.f, friction);
+
 		float targetPosition = params[POSITION_PARAM].getValue();
 		targetPosition += offset;
+		if (inputs[POSITION_INPUT].isConnected()) {
+			targetPosition = inputs[POSITION_INPUT].getVoltage();
+			targetPosition = clamp(targetPosition, minimum, maximum);
+		}
 
+		bool reset = resetTrigger.process(inputs[RESET_INPUT].getVoltage());
+
+		// simulate spring movement
 		float difference = position - targetPosition;
 		float tension = -stiffness * difference;
 		float damping = -friction * velocity;
 		float acceleration = tension + damping;
 		velocity += acceleration * args.sampleTime;
 		position += velocity * args.sampleTime;
-
-		float minimum = -5.f + offset;
-		float maximum = 5.f + offset;
 		position = clamp(position, minimum, maximum);
 
+		if (reset) {
+			velocity = 0;
+			position = targetPosition;
+		}
+
+		// normalize and write outputs and lights
 		outputs[ACCELERATION_OUTPUT].setVoltage(clamp(acceleration, -5.f, 5.f));
 		outputs[VELOCITY_OUTPUT].setVoltage(clamp(velocity, -5.f, 5.f));
 		outputs[POSITION_OUTPUT].setVoltage(position);
-		lights[DIFFERENCE_LIGHT].setBrightness(std::abs(difference) * 0.1f);
+		lights[DIFFERENCE_LIGHT].setBrightness(abs(difference) * 0.1f);
 	}
 };
 
