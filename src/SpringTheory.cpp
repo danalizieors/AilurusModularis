@@ -8,13 +8,13 @@ Vec grid(float x, float y) {
 struct SpringTheory : Module {
 	enum ParamIds {
 		OFFSET_PARAM,
-		STIFFNESS_PARAM,
+		FREQUENCY_PARAM,
 		FRICTION_PARAM,
 		POSITION_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
-		STIFFNESS_INPUT,
+		FREQUENCY_INPUT,
 		FRICTION_INPUT,
 		POSITION_INPUT,
 		RESET_INPUT,
@@ -35,7 +35,7 @@ struct SpringTheory : Module {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 
 		configParam(OFFSET_PARAM, 0.f, 1.f, 1.f, "Offset");
-		configParam(STIFFNESS_PARAM, 0.f, 10.f, 1.f, "Stiffness", "N/m");
+		configParam(FREQUENCY_PARAM, -10.f, 10.f, 0.f, "Frequency", "Hz", 2, 2);
 		configParam(FRICTION_PARAM, 0.f, 10.f, 1.f, "Friction", "Ns/m");
 		configParam(POSITION_PARAM, -5.f, 5.f, -5.f, "Position", "m");
 	}
@@ -52,9 +52,9 @@ struct SpringTheory : Module {
 		float minimum = -5.f + offset;
 		float maximum = 5.f + offset;
 
-		float stiffness = params[STIFFNESS_PARAM].getValue();
-		stiffness += inputs[STIFFNESS_INPUT].getVoltage();
-		stiffness = std::max(0.f, stiffness);
+		float frequencyControl = params[FREQUENCY_PARAM].getValue();
+		frequencyControl += inputs[FREQUENCY_INPUT].getVoltage();
+		frequencyControl = clamp(frequencyControl, -5.f, 5.f);
 
 		float friction = params[FRICTION_PARAM].getValue();
 		friction += inputs[FRICTION_INPUT].getVoltage();
@@ -68,6 +68,11 @@ struct SpringTheory : Module {
 		}
 
 		bool reset = resetTrigger.process(inputs[RESET_INPUT].getVoltage());
+
+		// trace back given variables to coefficients
+		float frequency = 2.f * pow(2, frequencyControl);
+		float angularVelocity = 2 * M_PI * frequency;
+		float stiffness = pow(angularVelocity, 2);
 
 		// simulate spring movement
 		float difference = position - targetPosition;
@@ -102,8 +107,8 @@ struct SpringTheoryWidget : ModuleWidget {
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addInput(createInputCentered<PJ301MPort>(grid(3, 11), module, SpringTheory::STIFFNESS_INPUT));
-		addParam(createParamCentered<RoundBlackKnob>(grid(8, 11), module, SpringTheory::STIFFNESS_PARAM));
+		addInput(createInputCentered<PJ301MPort>(grid(3, 11), module, SpringTheory::FREQUENCY_INPUT));
+		addParam(createParamCentered<RoundBlackKnob>(grid(8, 11), module, SpringTheory::FREQUENCY_PARAM));
 		addInput(createInputCentered<PJ301MPort>(grid(3, 16), module, SpringTheory::FRICTION_INPUT));
 		addParam(createParamCentered<RoundBlackKnob>(grid(8, 16), module, SpringTheory::FRICTION_PARAM));
 
